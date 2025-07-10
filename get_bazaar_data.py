@@ -7,9 +7,9 @@ from datetime import datetime, timedelta
 def sleep():
     now = datetime.now()
     # Floor to the current 10-minute mark
-    floored = now.replace(minute=(now.minute // 10) * 10, second=0, microsecond=0)
+    floored = now.replace(minute=(now.minute // REQUEST_INTERVAL) * REQUEST_INTERVAL, second=0, microsecond=0)
     # Add 10 minutes to get the *next* 10-minute mark
-    next_mark = floored + timedelta(minutes=10)
+    next_mark = floored + timedelta(minutes=REQUEST_INTERVAL)
     # Compute how many seconds to sleep
     sleep_seconds = (next_mark - now).total_seconds()
     print(f"Sleeping for {sleep_seconds:.2f} seconds until {next_mark}")
@@ -20,7 +20,7 @@ def sleep():
 API_URL = "https://api.hypixel.net/v2/skyblock/bazaar"  #
 DATABASE_NAME = "bazaar_history.db"
 TABLE_NAME = "quick_status"
-REQUEST_INTERVAL = 600  # Interval between API requests in seconds
+REQUEST_INTERVAL = 30  # Interval between API requests in seconds
 
 # Create database
 conn = sqlite3.connect(DATABASE_NAME)
