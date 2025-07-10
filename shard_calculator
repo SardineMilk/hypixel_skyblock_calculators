@@ -208,8 +208,14 @@ def fetchShardPrices(snapshot, shard_names, buy_order, sell_order):
 
 
 def getMaxProfit(fusion):
-    input1_cost = int(fusion['Input1_Quantity']) * float(shard_prices.loc[shard_prices['name'] == fusion['Input1_Name']]['buy'].iloc[0])
-    input2_cost = int(fusion['Input2_Quantity']) * float(shard_prices.loc[shard_prices['name'] == fusion['Input2_Name']]['buy'].iloc[0])
+    input1_cost = int(fusion['Input1_Quantity']) * float(shard_buy[fusion['Input1_Name']])
+    input2_cost = int(fusion['Input2_Quantity']) * float(shard_buy[fusion['Input2_Name']])
+
+    if input1_cost == 0:
+        input1_cost = float('inf')
+    if input2_cost == 0:
+        input2_cost = float('inf')
+
     input_cost = input1_cost + input2_cost
     output_costs = [
         float("-inf"),
@@ -217,14 +223,16 @@ def getMaxProfit(fusion):
         float("-inf")
     ]
 
+
+
     if not pd.isna(fusion['Output1_Name']):
-        output_costs[0] = int(fusion['Output1_Quantity']) * float(shard_prices.loc[shard_prices['name'] == fusion['Output1_Name']]['sell'].iloc[0])
+        output_costs[0] = int(fusion['Output1_Quantity']) * float(shard_sell[fusion['Output1_Name']])
         
     if not pd.isna(fusion['Output2_Name']):
-        output_costs[1] = int(fusion['Output2_Quantity']) * float(shard_prices.loc[shard_prices['name'] == fusion['Output2_Name']]['sell'].iloc[0])
+        output_costs[1] = int(fusion['Output2_Quantity']) * float(shard_sell[fusion['Output2_Name']])
 
     if not pd.isna(fusion['Output3_Name']):
-        output_costs[2] = int(fusion['Output3_Quantity']) * float(shard_prices.loc[shard_prices['name'] == fusion['Output3_Name']]['sell'].iloc[0])
+        output_costs[2] = int(fusion['Output3_Quantity']) * float(shard_sell[fusion['Output3_Name']])
 
     max_profit_index = int(output_costs.index(max(output_costs)))
     max_profit = output_costs[max_profit_index] - input_cost
@@ -235,8 +243,11 @@ buy_order = False
 sell_order = False
 print(f"Buy Order: {buy_order}  Sell Order: {sell_order}")
 
-snapshot = '2025_7_9_11_50'
+snapshot = '2025_7_10_17_30'
 shard_prices = fetchShardPrices(snapshot, shard_names, buy_order, sell_order)
+shard_buy = shard_prices.set_index('name')['buy'].to_dict()
+shard_sell = shard_prices.set_index('name')['sell'].to_dict()
+
 
 # Fetch the shard recipes
 fusion_recipes = pd.read_csv("fusion_recipes.csv")
@@ -250,6 +261,8 @@ fusion_recipes['profit_percent'] = 100 * fusion_recipes['profit'] / (
     fusion_recipes['Input2_Quantity'].astype(float) * shard_prices.set_index('name').loc[fusion_recipes['Input2_Name']]['buy'].values
 )
 
-print(fusion_recipes.head(20))
+print(fusion_recipes.head(50))
+fusion_recipes = fusion_recipes.sort_values('profit_percent', ascending=False)
+print(fusion_recipes.head(50))
 
 
