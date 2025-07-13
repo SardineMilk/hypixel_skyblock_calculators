@@ -18,8 +18,9 @@ Use at your own risk, and doouble-check any results before spending a lot.
 'shard_calculator' prints out a list of fusion crafts, ordered by profit per craft
 - Change 'buy_order' and 'sell_order' variables if you don't want to instabuy/sell. This will increase profit a lot.
 - Set the CROCODILE_LEVEL variable to the level of your Crocodile shard. This will add random chance to your profits, so feel free to leave at 0
-- The 'snapshot' variable is the timestamp of the bazaar data the calculator will use. Change this to whatever the most recent data is.
 
+- process_raw_recipes doesn't need to be run. It's still there in case fusions change.
+- calculate_margins and trend_graph are still WIP
 
 &nbsp;
 
