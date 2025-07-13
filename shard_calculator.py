@@ -1,5 +1,6 @@
 import pandas as pd
 import csv
+import sqlite3
 
 # Credit to HsFearless, MaxLunar & WhatYouThing for the data
 # Sheet created by @lunaynx
@@ -7,7 +8,7 @@ import csv
 
 
 # Matches in game name to bazaar product id
-shard_names = {
+SHARD_NAMES = {
     'SHARD_GROVE': 'Grove',
     'SHARD_MIST': 'Mist',
     'SHARD_FLASH': 'Flash',
@@ -184,28 +185,71 @@ shard_names = {
     'SHARD_STARBORN': 'Starborn',
 }
 
+REPTILES = [
+    'Newt',
+    'Salamander',
+    'Cuboa',
+    'Viper',
+    'Lizard King',
+    'Python',
+    'Crocodile',
+    'King Cobra',
+    'Gecko',
+    'Leviathan',
+    'Alligator',
+    'Basilisk',
+    'Iguana',
+    'Komodo Dragon',
+    'Shellwise',
+    'Caiman',
+    'Leatherback',
+    'Chameleon',
+    'Tiamat',
+    'Wyvern',
+    'Tortoise',
+    'Megalith'
+]
 
-def fetchShardPrices(snapshot, shard_names, buy_order, sell_order):
+def getShardPrices(shard_names, buy_order, sell_order):
+    DATABASE_NAME = "bazaar_history.db"
+    TABLE_NAME = "quick_status"
 
-    file_name = 'bazaar_data/' + snapshot + '.csv'
-    bazaar_data = pd.read_csv(file_name)
-    shard_data = bazaar_data[bazaar_data['productId'].str.startswith('SHARD_')].copy()
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
 
+    cursor.execute(f"""
+    SELECT 
+        productId,
+        buyPrice,   
+        sellPrice
+    FROM {TABLE_NAME}
+    WHERE timestamp = (
+        SELECT MAX(timestamp)
+        FROM {TABLE_NAME}
+    ) 
+    AND productID LIKE "SHARD_%"
+    """)
+
+    items = cursor.fetchall()
+
+    shard_prices = pd.DataFrame(items)
+    shard_prices.columns = ['productId', 'buyPrice', 'sellPrice']
     if buy_order:
-        shard_data['buy'] = shard_data['sellPrice']  
+        shard_prices['buy'] = shard_prices['sellPrice']  
     else:
-        shard_data['buy'] = shard_data['buyPrice']   
+        shard_prices['buy'] = shard_prices['buyPrice']   
 
     if sell_order:
-        shard_data['sell'] = shard_data['buyPrice']  
+        shard_prices['sell'] = shard_prices['buyPrice']  
     else:
-        shard_data['sell'] = shard_data['sellPrice'] 
+        shard_prices['sell'] = shard_prices['sellPrice'] 
 
-    shard_data['name'] = shard_data['productId'].map(shard_names)
+    shard_prices['name'] = shard_prices['productId'].map(shard_names)
 
-    return shard_data[['name', 'buy', 'sell']]
+    conn.commit()
+    conn.close()
 
-
+    return shard_prices[['name', 'buy', 'sell']]
 
 def getMaxProfit(fusion):
     input1_cost = int(fusion['Input1_Quantity']) * float(shard_buy[fusion['Input1_Name']])
@@ -217,13 +261,12 @@ def getMaxProfit(fusion):
         input2_cost = float('inf')
 
     input_cost = input1_cost + input2_cost
+
     output_costs = [
         float("-inf"),
         float("-inf"),
         float("-inf")
     ]
-
-
 
     if not pd.isna(fusion['Output1_Name']):
         output_costs[0] = int(fusion['Output1_Quantity']) * float(shard_sell[fusion['Output1_Name']])
@@ -235,19 +278,24 @@ def getMaxProfit(fusion):
         output_costs[2] = int(fusion['Output3_Quantity']) * float(shard_sell[fusion['Output3_Name']])
 
     max_profit_index = int(output_costs.index(max(output_costs)))
-    max_profit = output_costs[max_profit_index] - input_cost
+    max_sell = output_costs[max_profit_index] 
+
+    if (fusion['Input1_Name'] in REPTILES) or (fusion['Input2_Name']) in REPTILES:
+        max_sell *= 1 + (0.02 * CROCODILE_LEVEL)
+
+    max_profit = max_sell - input_cost
     return pd.Series({'output_index':max_profit_index, 'profit':max_profit})
 
 
-buy_order = False
-sell_order = False
-print(f"Buy Order: {buy_order}  Sell Order: {sell_order}")
+BUY_ORDER = False
+SELL_ORDER = False
+print(f"Buy Order: {BUY_ORDER}  Sell Order: {SELL_ORDER}")
 
-snapshot = '2025_7_10_17_30'
-shard_prices = fetchShardPrices(snapshot, shard_names, buy_order, sell_order)
+CROCODILE_LEVEL = 0  # Gives a +2% chance pre level for shard fusions that use Reptile shards to double, up to 20%
+
+shard_prices = getShardPrices(SHARD_NAMES, BUY_ORDER, SELL_ORDER)
 shard_buy = shard_prices.set_index('name')['buy'].to_dict()
 shard_sell = shard_prices.set_index('name')['sell'].to_dict()
-
 
 # Fetch the shard recipes
 fusion_recipes = pd.read_csv("fusion_recipes.csv")
@@ -260,7 +308,6 @@ fusion_recipes['profit_percent'] = 100 * fusion_recipes['profit'] / (
     fusion_recipes['Input1_Quantity'].astype(float) * shard_prices.set_index('name').loc[fusion_recipes['Input1_Name']]['buy'].values +
     fusion_recipes['Input2_Quantity'].astype(float) * shard_prices.set_index('name').loc[fusion_recipes['Input2_Name']]['buy'].values
 )
-
 print(fusion_recipes.head(50))
 fusion_recipes = fusion_recipes.sort_values('profit_percent', ascending=False)
 print(fusion_recipes.head(50))
