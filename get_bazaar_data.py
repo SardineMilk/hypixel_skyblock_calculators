@@ -20,7 +20,7 @@ def sleep():
 API_URL = "https://api.hypixel.net/v2/skyblock/bazaar"  #
 DATABASE_NAME = "bazaar_history.db"
 TABLE_NAME = "quick_status"
-REQUEST_INTERVAL = 30  # Interval between API requests in seconds
+REQUEST_INTERVAL = 5  # Interval between API requests in minutes
 
 # Create database
 conn = sqlite3.connect(DATABASE_NAME)
@@ -52,6 +52,23 @@ conn.close()
 while True:
     sleep()
     try:
+        print("Connecting to database")
+        conn = sqlite3.connect(DATABASE_NAME)
+        cursor = conn.cursor()
+
+        # Delete data older than 7 days
+        print("Clearing old data")
+        cursor.execute(f'''
+            DELETE FROM {TABLE_NAME}
+            WHERE timestamp < datetime('now', '-7 days')
+        ''')
+
+        cursor.execute(f'''
+            DELETE FROM {TABLE_NAME}
+            WHERE strftime('%M', timestamp) NOT IN ('00', '30')
+        ''')
+
+
         print("Requesting data from Bazaar")
         response = requests.get(API_URL)
         response.raise_for_status()
@@ -60,9 +77,7 @@ while True:
         products = data.get("products", {})
         timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M")
 
-        print("Connecting to database")
-        conn = sqlite3.connect(DATABASE_NAME)
-        cursor = conn.cursor()
+
 
         print("Saving data")
         for product in products.values():
@@ -89,11 +104,6 @@ while True:
                 timestamp
             ))
 
-        # Delete data older than 7 days
-        cursor.execute(f'''
-            DELETE FROM {TABLE_NAME}
-            WHERE timestamp < datetime('now', '-7 days')
-        ''')
 
         conn.commit()
         conn.close()

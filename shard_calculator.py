@@ -246,7 +246,6 @@ def getShardPrices(shard_names, buy_order, sell_order):
 
     shard_prices['name'] = shard_prices['productId'].map(shard_names)
 
-    conn.commit()
     conn.close()
 
     return shard_prices[['name', 'buy', 'sell']]
@@ -262,36 +261,21 @@ def getMaxProfit(fusion):
 
     input_cost = input1_cost + input2_cost
 
-    output_costs = [
-        float("-inf"),
-        float("-inf"),
-        float("-inf")
-    ]
+    output_cost = int(fusion['Output_Quantity']) * float(shard_sell[fusion['Output_Name']])
+       
 
-    if not pd.isna(fusion['Output1_Name']):
-        output_costs[0] = int(fusion['Output1_Quantity']) * float(shard_sell[fusion['Output1_Name']])
-        
-    if not pd.isna(fusion['Output2_Name']):
-        output_costs[1] = int(fusion['Output2_Quantity']) * float(shard_sell[fusion['Output2_Name']])
+    if fusion['Is_Reptile']:
+        output_cost *= 1 + (0.02 * CROCODILE_LEVEL)
 
-    if not pd.isna(fusion['Output3_Name']):
-        output_costs[2] = int(fusion['Output3_Quantity']) * float(shard_sell[fusion['Output3_Name']])
-
-    max_profit_index = int(output_costs.index(max(output_costs)))
-    max_sell = output_costs[max_profit_index] 
-
-    if (fusion['Input1_Name'] in REPTILES) or (fusion['Input2_Name']) in REPTILES:
-        max_sell *= 1 + (0.02 * CROCODILE_LEVEL)
-
-    max_profit = max_sell - input_cost
-    return pd.Series({'output_index':max_profit_index, 'profit':max_profit})
+    max_profit = output_cost - input_cost
+    return max_profit
 
 
 BUY_ORDER = False
 SELL_ORDER = False
 print(f"Buy Order: {BUY_ORDER}  Sell Order: {SELL_ORDER}")
 
-CROCODILE_LEVEL = 0  # Gives a +2% chance pre level for shard fusions that use Reptile shards to double, up to 20%
+CROCODILE_LEVEL = 10  # Gives a +2% chance pre level for shard fusions that use Reptile shards to double, up to 20%
 
 shard_prices = getShardPrices(SHARD_NAMES, BUY_ORDER, SELL_ORDER)
 shard_buy = shard_prices.set_index('name')['buy'].to_dict()
@@ -299,17 +283,22 @@ shard_sell = shard_prices.set_index('name')['sell'].to_dict()
 
 # Fetch the shard recipes
 fusion_recipes = pd.read_csv("fusion_recipes.csv")
-fusion_recipes = fusion_recipes[['Input1_Quantity', 'Input1_Name', 'Input2_Quantity', 'Input2_Name', 'Output1_Quantity', 'Output1_Name', 'Output2_Quantity', 'Output2_Name', 'Output3_Quantity', 'Output3_Name',]]
+fusion_recipes = fusion_recipes[['Input1_Quantity', 'Input1_Name', 'Input2_Quantity', 'Input2_Name', 'Output_Quantity', 'Output_Name']]
+fusion_recipes['Is_Reptile'] = fusion_recipes['Input1_Name'].isin(REPTILES) | fusion_recipes['Input2_Name'].isin(REPTILES)
 
-fusion_recipes[['output_index', 'profit']] = fusion_recipes.apply(getMaxProfit, axis=1)
-fusion_recipes = fusion_recipes.sort_values('profit', ascending=False)
+fusion_recipes['Profit'] = fusion_recipes.apply(lambda row: getMaxProfit(row), axis=1)
 
-fusion_recipes['profit_percent'] = 100 * fusion_recipes['profit'] / (
+fusion_recipes['Profit_Percent'] = 100 * fusion_recipes['Profit'] / (
     fusion_recipes['Input1_Quantity'].astype(float) * shard_prices.set_index('name').loc[fusion_recipes['Input1_Name']]['buy'].values +
     fusion_recipes['Input2_Quantity'].astype(float) * shard_prices.set_index('name').loc[fusion_recipes['Input2_Name']]['buy'].values
 )
-print(fusion_recipes.head(50))
-fusion_recipes = fusion_recipes.sort_values('profit_percent', ascending=False)
-print(fusion_recipes.head(50))
+
+fusion_profits = fusion_recipes[['Input1_Name', 'Input1_Quantity', 'Input2_Name', 'Input2_Quantity', 'Output_Name', 'Output_Quantity', 'Profit', 'Profit_Percent']]
+
+fusion_profits= fusion_profits.sort_values('Profit', ascending=False)
+print(fusion_profits.head(50).to_string(index=False))
+print()
+fusion_profits = fusion_profits.sort_values('Profit_Percent', ascending=False)
+print(fusion_profits.head(50).to_string(index=False))
 
 
