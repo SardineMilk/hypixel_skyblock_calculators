@@ -267,15 +267,18 @@ def getMaxProfit(fusion):
     if fusion['Is_Reptile']:
         output_cost *= 1 + (0.02 * CROCODILE_LEVEL)
 
-    max_profit = output_cost - input_cost
-    return max_profit
+    profit = output_cost - input_cost
+
+    profit_percent = 100 * (profit / input_cost)
+
+    return int(profit)
 
 
 BUY_ORDER = False
 SELL_ORDER = False
 print(f"Buy Order: {BUY_ORDER}  Sell Order: {SELL_ORDER}")
 
-CROCODILE_LEVEL = 10  # Gives a +2% chance pre level for shard fusions that use Reptile shards to double, up to 20%
+CROCODILE_LEVEL = 10  # Gives a +2% chance per level for fusions that use Reptile shards to double, up to 20%
 
 shard_prices = getShardPrices(SHARD_NAMES, BUY_ORDER, SELL_ORDER)
 shard_buy = shard_prices.set_index('name')['buy'].to_dict()
@@ -284,8 +287,17 @@ shard_sell = shard_prices.set_index('name')['sell'].to_dict()
 # Fetch the shard recipes
 fusion_recipes = pd.read_csv("fusion_recipes.csv")
 fusion_recipes = fusion_recipes[['Input1_Quantity', 'Input1_Name', 'Input2_Quantity', 'Input2_Name', 'Output_Quantity', 'Output_Name']]
-fusion_recipes['Is_Reptile'] = fusion_recipes['Input1_Name'].isin(REPTILES) | fusion_recipes['Input2_Name'].isin(REPTILES)
 
+
+fusion_recipes['Input_Pair'] = fusion_recipes.apply(
+    lambda row: '_'.join(sorted([row['Input1_Name'], row['Input2_Name']])),
+    axis=1
+)
+fusion_recipes = fusion_recipes.drop_duplicates(subset=['Input_Pair'])
+fusion_recipes = fusion_recipes.drop(columns=['Input_Pair'])
+
+
+fusion_recipes['Is_Reptile'] = fusion_recipes['Input1_Name'].isin(REPTILES) | fusion_recipes['Input2_Name'].isin(REPTILES)
 fusion_recipes['Profit'] = fusion_recipes.apply(lambda row: getMaxProfit(row), axis=1)
 
 fusion_recipes['Profit_Percent'] = 100 * fusion_recipes['Profit'] / (
@@ -294,6 +306,9 @@ fusion_recipes['Profit_Percent'] = 100 * fusion_recipes['Profit'] / (
 )
 
 fusion_profits = fusion_recipes[['Input1_Name', 'Input1_Quantity', 'Input2_Name', 'Input2_Quantity', 'Output_Name', 'Output_Quantity', 'Profit', 'Profit_Percent']]
+
+
+
 
 fusion_profits= fusion_profits.sort_values('Profit', ascending=False)
 print(fusion_profits.head(50).to_string(index=False))

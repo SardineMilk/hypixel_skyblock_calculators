@@ -62,7 +62,6 @@ for i in range(1, 4):
         f'Output{i}_Name': 'Output_Name',
         f'Output{i}_ID': 'Output_ID'
     })
-    
     outputs.append(subset)
 
 # Concatenate and drop empty outputs
