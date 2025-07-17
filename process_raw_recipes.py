@@ -71,5 +71,11 @@ final_processed_recipes = final_processed_recipes[final_processed_recipes['Outpu
 # Reset index
 final_processed_recipes = final_processed_recipes.reset_index(drop=True)
 
+final_processed_recipes['Input_Pair'] = final_processed_recipes.apply(
+    lambda row: '_'.join(sorted([row['Input1_Name'], row['Input2_Name']])),
+    axis=1
+)
+final_processed_recipes = final_processed_recipes.drop_duplicates(subset=['Input_Pair'])
+final_processed_recipes = final_processed_recipes.drop(columns=['Input_Pair'])
 
 final_processed_recipes.to_csv("fusion_recipes.csv", index=False)

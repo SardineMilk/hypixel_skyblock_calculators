@@ -1,10 +1,5 @@
 import pandas as pd
-import csv
 import sqlite3
-
-# Credit to HsFearless, MaxLunar & WhatYouThing for the data
-# Sheet created by @lunaynx
-# Kudos to Lukasaurus11 on GitHub for helpful discussions
 
 
 # Matches in game name to bazaar product id
@@ -250,35 +245,13 @@ def getShardPrices(shard_names, buy_order, sell_order):
 
     return shard_prices[['name', 'buy', 'sell']]
 
-def getMaxProfit(fusion):
-    input1_cost = int(fusion['Input1_Quantity']) * float(shard_buy[fusion['Input1_Name']])
-    input2_cost = int(fusion['Input2_Quantity']) * float(shard_buy[fusion['Input2_Name']])
-
-    if input1_cost == 0:
-        input1_cost = float('inf')
-    if input2_cost == 0:
-        input2_cost = float('inf')
-
-    input_cost = input1_cost + input2_cost
-
-    output_cost = int(fusion['Output_Quantity']) * float(shard_sell[fusion['Output_Name']])
-       
-
-    if fusion['Is_Reptile']:
-        output_cost *= 1 + (0.02 * CROCODILE_LEVEL)
-
-    profit = output_cost - input_cost
-
-    profit_percent = 100 * (profit / input_cost)
-
-    return int(profit)
-
 
 BUY_ORDER = False
 SELL_ORDER = False
+CROCODILE_LEVEL = 10  # Gives a +2% chance per level for fusions that use Reptile shards to double, up to 20%
+
 print(f"Buy Order: {BUY_ORDER}  Sell Order: {SELL_ORDER}")
 
-CROCODILE_LEVEL = 10  # Gives a +2% chance per level for fusions that use Reptile shards to double, up to 20%
 
 shard_prices = getShardPrices(SHARD_NAMES, BUY_ORDER, SELL_ORDER)
 shard_buy = shard_prices.set_index('name')['buy'].to_dict()
@@ -288,23 +261,32 @@ shard_sell = shard_prices.set_index('name')['sell'].to_dict()
 fusion_recipes = pd.read_csv("fusion_recipes.csv")
 fusion_recipes = fusion_recipes[['Input1_Quantity', 'Input1_Name', 'Input2_Quantity', 'Input2_Name', 'Output_Quantity', 'Output_Name']]
 
-
-fusion_recipes['Input_Pair'] = fusion_recipes.apply(
-    lambda row: '_'.join(sorted([row['Input1_Name'], row['Input2_Name']])),
-    axis=1
-)
-fusion_recipes = fusion_recipes.drop_duplicates(subset=['Input_Pair'])
-fusion_recipes = fusion_recipes.drop(columns=['Input_Pair'])
-
-
+# Fusions with a reptile are affected by Crocodile
 fusion_recipes['Is_Reptile'] = fusion_recipes['Input1_Name'].isin(REPTILES) | fusion_recipes['Input2_Name'].isin(REPTILES)
-fusion_recipes['Profit'] = fusion_recipes.apply(lambda row: getMaxProfit(row), axis=1)
 
-fusion_recipes['Profit_Percent'] = 100 * fusion_recipes['Profit'] / (
-    fusion_recipes['Input1_Quantity'].astype(float) * shard_prices.set_index('name').loc[fusion_recipes['Input1_Name']]['buy'].values +
-    fusion_recipes['Input2_Quantity'].astype(float) * shard_prices.set_index('name').loc[fusion_recipes['Input2_Name']]['buy'].values
-)
+# Get input costs
+fusion_recipes['Input1_Cost'] = fusion_recipes['Input1_Quantity'].astype(float) * shard_prices.set_index('name').loc[fusion_recipes['Input1_Name']]['buy'].values 
+fusion_recipes['Input2_Cost'] = fusion_recipes['Input2_Quantity'].astype(float) * shard_prices.set_index('name').loc[fusion_recipes['Input2_Name']]['buy'].values
 
+# Filter out dead items - no sell orders
+fusion_recipes = fusion_recipes[(fusion_recipes['Input1_Cost'] != 0) & (fusion_recipes['Input2_Cost'] != 0)]
+
+fusion_recipes['Input_Cost'] = fusion_recipes['Input1_Cost'] + fusion_recipes['Input2_Cost']
+
+# Multiply Output_Quantity by the shard's sell price
+fusion_recipes['Output_Cost'] = fusion_recipes['Output_Quantity'] * shard_prices.set_index('name').loc[fusion_recipes['Output_Name']]['sell'].values
+
+# Add +2% for each Crocodile level if the fusion is a reptile fusion
+fusion_recipes['Output_Cost'] = fusion_recipes['Output_Cost'] * (1+(fusion_recipes['Is_Reptile']*0.02 *CROCODILE_LEVEL))
+
+
+# Get absolute profit per fusion
+fusion_recipes['Profit'] = fusion_recipes['Output_Cost'] - fusion_recipes['Input_Cost']
+
+# Get profit percentage per fusion
+fusion_recipes['Profit_Percent'] = 100 * (fusion_recipes['Profit'] / fusion_recipes['Input_Cost'])
+
+# Only display useful outputs 
 fusion_profits = fusion_recipes[['Input1_Name', 'Input1_Quantity', 'Input2_Name', 'Input2_Quantity', 'Output_Name', 'Output_Quantity', 'Profit', 'Profit_Percent']]
 
 
